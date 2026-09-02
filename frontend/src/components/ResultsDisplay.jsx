@@ -1,114 +1,93 @@
-/**
- * ResultsDisplay Component
- * 
- * Renders the prioritized, classified, and LLM-explained lab results
- * including severity badges, reference intervals, and actionable recommendations.
- */
-
 import React from 'react';
 import SeverityBadge from './SeverityBadge';
-import { Activity, ArrowRight, Info, CheckCircle, AlertTriangle, AlertOctagon, HelpCircle } from 'lucide-react';
+
+function EmptyPanel() {
+  return (
+    <div className="empty">
+      <svg className="empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414A1 1 0 0 1 19 9.414V19a2 2 0 0 1-2 2z"/>
+      </svg>
+      <p className="empty-title">No results yet</p>
+      <p className="empty-hint">Enter lab values on the left and click Run Analysis</p>
+    </div>
+  );
+}
+
+function LoadingPanel() {
+  return (
+    <div className="loading-panel">
+      <svg className="spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+      <p>Classifying and generating explanations…</p>
+    </div>
+  );
+}
 
 export default function ResultsDisplay({ data, isLoading }) {
-  if (isLoading) {
-    return (
-      <div className="card">
-        <div className="empty-state">
-          <Activity className="empty-icon spinner" style={{ color: '#0284c7' }} />
-          <h3 className="empty-title">Analyzing Clinical Findings</h3>
-          <p className="empty-desc">Executing Agent orchestration: Validating → Classifying → Priority Routing → AI Explaining...</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingPanel />;
+  if (!data || !data.results || data.results.length === 0) return <EmptyPanel />;
 
-  if (!data || !data.results || data.results.length === 0) {
-    return (
-      <div className="card">
-        <div className="empty-state">
-          <HelpCircle className="empty-icon" />
-          <h3 className="empty-title">No Lab Results Analyzed</h3>
-          <p className="empty-desc">Enter laboratory tests on the left panel or upload a CSV dataset to view classified results.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const { results, critical_count, warning_count, normal_count, total_analyzed, disclaimer } = data;
+  const { results, critical_count, warning_count, normal_count, total_analyzed } = data;
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h2 className="card-title">
-          <Activity size={20} color="#0284c7" />
-          Clinical Analysis & Explanations
-        </h2>
-        <span style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 600 }}>
-          {total_analyzed} Test{total_analyzed !== 1 ? 's' : ''} Processed
-        </span>
+    <>
+      {/* Stats */}
+      <div className="stats-row">
+        <div className="stat-card red">
+          <span className="stat-indicator red" />
+          <div>
+            <div className="stat-number">{critical_count}</div>
+            <div className="stat-label">Critical</div>
+          </div>
+        </div>
+        <div className="stat-card amber">
+          <span className="stat-indicator amber" />
+          <div>
+            <div className="stat-number">{warning_count}</div>
+            <div className="stat-label">Warning</div>
+          </div>
+        </div>
+        <div className="stat-card green">
+          <span className="stat-indicator green" />
+          <div>
+            <div className="stat-number">{normal_count}</div>
+            <div className="stat-label">Normal</div>
+          </div>
+        </div>
       </div>
 
-      {/* Summary Stat Counters */}
-      <div className="stats-summary">
-        <div className="stat-box critical">
-          <div className="stat-count">{critical_count}</div>
-          <div className="stat-label">Critical</div>
-        </div>
-        <div className="stat-box warning">
-          <div className="stat-count">{warning_count}</div>
-          <div className="stat-label">Warning</div>
-        </div>
-        <div className="stat-box normal">
-          <div className="stat-count">{normal_count}</div>
-          <div className="stat-label">Normal</div>
-        </div>
-      </div>
-
-      {/* Prioritized Results List (Critical -> Warning -> Normal) */}
-      <div className="results-list">
-        {results.map((item, idx) => {
-          const cardSeverityClass = (item.status || 'unknown').toLowerCase();
-
-          return (
-            <div key={idx} className={`result-card ${cardSeverityClass}`}>
-              <div className="result-card-top">
-                <div>
-                  <h3 className="test-title">{item.test_name}</h3>
-                  <div className="test-value-wrap">
-                    <span className="test-value">{item.value}</span>
-                    <span className="test-unit">{item.unit}</span>
-                  </div>
-                  <div className="ref-range-badge">
-                    Reference Interval: {item.reference_range}
-                  </div>
-                </div>
-
-                <SeverityBadge status={item.status} />
+      {/* Result cards */}
+      {results.map((item, idx) => {
+        const s = (item.status || 'unknown').toLowerCase();
+        return (
+          <div key={idx} className={`result-card is-${s}`}>
+            <div className="result-card-header">
+              <div>
+                <div className="result-name">{item.test_name}</div>
+                <div className="result-meta">ref: {item.reference_range}</div>
               </div>
-
-              {/* LLM Clinical Explanation */}
-              <div className="result-section">
-                <div className="section-label">
-                  <Info size={13} />
-                  Clinical Context & Explanation
+              <div style={{ textAlign: 'right' }}>
+                <div className="result-value">{item.value} <span className="result-unit">{item.unit}</span></div>
+                <div style={{ marginTop: 4 }}>
+                  <SeverityBadge status={item.status} />
                 </div>
-                <p className="explanation-text">{item.explanation}</p>
               </div>
-
-              {/* Recommended Next Step */}
+            </div>
+            <div className="result-body">
+              <p className="result-explanation">{item.explanation}</p>
               {item.next_step && (
-                <div className="next-step-box">
-                  <div className="section-label" style={{ color: '#0369a1', marginBottom: '0.2rem' }}>
-                    <ArrowRight size={13} />
-                    Suggested Next Step
-                  </div>
-                  <div>{item.next_step}</div>
+                <div className="next-step">
+                  <svg className="next-step-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                  <span>{item.next_step}</span>
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
-    </div>
+          </div>
+        );
+      })}
+    </>
   );
 }

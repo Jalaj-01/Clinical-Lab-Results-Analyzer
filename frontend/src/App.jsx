@@ -1,120 +1,62 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import LabInput from './components/LabInput';
 import ResultsDisplay from './components/ResultsDisplay';
-import { Activity, ShieldAlert, Cpu, HeartPulse } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+const API = 'http://localhost:8000';
 
 export default function App() {
-  const [resultsData, setResultsData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
-  const [backendHealth, setBackendHealth] = useState({ status: 'checking', llm_configured: false });
 
-  // Check backend health on load
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/health`);
-        if (res.ok) {
-          const data = await res.json();
-          setBackendHealth(data);
-        } else {
-          setBackendHealth({ status: 'offline', llm_configured: false });
-        }
-      } catch (e) {
-        setBackendHealth({ status: 'offline', llm_configured: false });
-      }
-    };
-    checkHealth();
-  }, []);
-
-  const handleAnalyzeLabs = async (labsArray) => {
-    setIsLoading(true);
+  const analyze = async (labs) => {
+    setLoading(true);
     setApiError(null);
-
     try {
-      const response = await fetch(`${API_BASE}/analyze_labs`, {
+      const res = await fetch(`${API}/analyze_labs`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ labs: labsArray })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labs }),
       });
-
-      if (!response.ok) {
-        let errorMsg = 'Failed to analyze lab results.';
-        try {
-          const errData = await response.json();
-          errorMsg = errData.detail || errorMsg;
-        } catch (_) {}
-        throw new Error(errorMsg);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.detail || `Server error ${res.status}`);
       }
-
-      const data = await response.json();
-      setResultsData(data);
+      setData(await res.json());
     } catch (err) {
-      setApiError(err.message || 'Unable to connect to the analysis backend server.');
+      setApiError(err.message || 'Could not reach the backend.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="app-container">
-      {/* Top Navbar */}
-      <header className="header">
-        <div className="header-content">
-          <div className="brand">
-            <div className="brand-icon">
-              <HeartPulse size={24} />
-            </div>
-            <div>
-              <h1 className="brand-title">Clinical Lab Results Analyzer</h1>
-              <p className="brand-subtitle">GenAI & MCP Medical Prioritization & Explanation Engine</p>
-            </div>
-          </div>
-
-          <div className="system-status">
-            <div
-              className="status-dot"
-              style={{
-                backgroundColor:
-                  backendHealth.status === 'healthy' ? '#10b981' : '#f59e0b'
-              }}
-            />
-            <span>
-              {backendHealth.status === 'healthy'
-                ? `Backend Online ${backendHealth.llm_configured ? '(LLM Active)' : '(Fallback Mode)'}`
-                : 'Backend Disconnected'}
-            </span>
-          </div>
+    <div className="app">
+      {/* Top bar */}
+      <header className="topbar">
+        <div className="topbar-logo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+          </svg>
         </div>
-      </header>
-
-      {/* Main Content Body */}
-      <main className="main-content">
-        {/* Medical Safety Disclaimer */}
-        <div className="safety-banner">
-          <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <div>
-            <strong>Medical Demonstration Disclaimer:</strong> This application is for educational and clinical workflow demonstration purposes only. It is not intended for diagnostic use. All abnormal findings must be clinically correlated and reviewed by a qualified healthcare professional.
-          </div>
-        </div>
+        <span className="topbar-name">Lab Results Analyzer</span>
+        <span className="topbar-sep" />
+        <span className="topbar-sub">Classify · Route · Explain</span>
 
         {apiError && (
-          <div className="error-message">
-            <ShieldAlert size={16} />
-            <span><strong>Analysis Error:</strong> {apiError}</span>
-          </div>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+            ⚠ {apiError}
+          </span>
         )}
+      </header>
 
-        {/* Dashboard 2-Column Grid */}
-        <div className="dashboard-grid">
-          <LabInput onAnalyze={handleAnalyzeLabs} isLoading={isLoading} />
-          <ResultsDisplay data={resultsData} isLoading={isLoading} />
-        </div>
-      </main>
+      {/* Sidebar */}
+      <LabInput onAnalyze={analyze} isLoading={loading} />
+
+      {/* Results panel */}
+      <div className="panel">
+        <ResultsDisplay data={data} isLoading={loading} />
+      </div>
     </div>
   );
 }

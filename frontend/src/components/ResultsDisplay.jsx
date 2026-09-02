@@ -4,11 +4,11 @@ import SeverityBadge from './SeverityBadge';
 function EmptyPanel() {
   return (
     <div className="empty">
-      <svg className="empty-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
+      <svg className="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
         <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414A1 1 0 0 1 19 9.414V19a2 2 0 0 1-2 2z"/>
       </svg>
-      <p className="empty-title">No results yet</p>
-      <p className="empty-hint">Enter lab values on the left and click Run Analysis</p>
+      <p className="empty-title">No results to display</p>
+      <p className="empty-hint">Load a sample dataset or enter values manually, then click Run Analysis</p>
     </div>
   );
 }
@@ -19,7 +19,7 @@ function LoadingPanel() {
       <svg className="spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2">
         <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
       </svg>
-      <p>Classifying and generating explanations…</p>
+      <p>Classifying results and generating clinical explanations...</p>
     </div>
   );
 }
@@ -32,7 +32,7 @@ export default function ResultsDisplay({ data, isLoading }) {
 
   return (
     <>
-      {/* Stats */}
+      {/* Summary Stats */}
       <div className="stats-row">
         <div className="stat-card red">
           <span className="stat-indicator red" />
@@ -57,7 +57,7 @@ export default function ResultsDisplay({ data, isLoading }) {
         </div>
       </div>
 
-      {/* Result cards */}
+      {/* Result Cards */}
       {results.map((item, idx) => {
         const s = (item.status || 'unknown').toLowerCase();
         return (
@@ -65,22 +65,20 @@ export default function ResultsDisplay({ data, isLoading }) {
             <div className="result-card-header">
               <div>
                 <div className="result-name">{item.test_name}</div>
-                <div className="result-meta">ref: {item.reference_range}</div>
+                <div className="result-meta">Ref: {item.reference_range}</div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div className="result-value">{item.value} <span className="result-unit">{item.unit}</span></div>
-                <div style={{ marginTop: 4 }}>
-                  <SeverityBadge status={item.status} />
+              <div className="result-right">
+                <div className="result-value">
+                  {item.value} <span className="result-unit">{item.unit}</span>
                 </div>
+                <SeverityBadge status={item.status} />
               </div>
             </div>
             <div className="result-body">
               <p className="result-explanation">{item.explanation}</p>
               {item.next_step && (
                 <div className="next-step">
-                  <svg className="next-step-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                  </svg>
+                  <span className="next-step-label">Next Step:</span>
                   <span>{item.next_step}</span>
                 </div>
               )}

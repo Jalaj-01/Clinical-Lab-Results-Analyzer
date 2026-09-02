@@ -3,7 +3,7 @@
 import os
 import json
 import logging
-from typing import Dict, Any
+from typing import Dict, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,27 +12,34 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 
+# Gemini client initialization
 _gemini_client = None
 if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
     try:
         from google import genai
         _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
     except Exception as e:
-        logger.warning(f"Failed to init google-genai client: {e}")
+        logger.warning(f"Could not initialize Google GenAI client: {e}")
 
+# Groq client initialization
 _groq_client = None
 if GROQ_API_KEY:
     try:
         from groq import Groq
         _groq_client = Groq(api_key=GROQ_API_KEY)
     except Exception as e:
-        logger.warning(f"Failed to init groq client: {e}")
+        logger.warning(f"Could not initialize Groq client: {e}")
 
 
-def get_clinical_prompt(test_name: str, value: float, unit: str, status: str, reference_range: str) -> str:
-    """Construct the prompt sent to the LLM."""
+def get_clinical_prompt(
+    test_name: str,
+    value: float,
+    unit: str,
+    status: str,
+    reference_range: str
+) -> str:
+    """Construct the prompt sent to the LLM for clinical explanation."""
     return f"""You are a clinical laboratory explanation assistant.
 Analyze the following laboratory test result and provide a concise, non-diagnostic clinical explanation.
 
@@ -63,7 +70,7 @@ async def generate_lab_explanation(
     status: str,
     reference_range: str
 ) -> Dict[str, str]:
-    """Generate an explanation for a lab test result using LLM or structured clinical engine."""
+    """Generate an explanation for a lab test result using LLM or clinical engine."""
     prompt = get_clinical_prompt(test_name, value, unit, status, reference_range)
 
     # 1. Try Groq if configured
@@ -75,44 +82,45 @@ async def generate_lab_explanation(
                 response_format={"type": "json_object"},
             )
             content = chat_completion.choices[0].message.content
-            parsed = json.loads(content)
-            if "explanation" in parsed and "next_step" in parsed:
-                return {
-                    "explanation": str(parsed["explanation"]),
-                    "next_step": str(parsed["next_step"])
-                }
-        except Exception as e:
-            logger.warning(f"Groq API call failed: {e}")
-
-    # 2. Try Gemini if configured
-    if _gemini_client:
-        models_to_try = [GEMINI_MODEL, "gemini-2.5-flash", "gemini-3.6-flash", "gemini-flash-latest"]
-        for model_name in models_to_try:
-            try:
-                response = _gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                text = response.text.strip()
-                if "```json" in text:
-                    text = text.split("```json")[1].split("```")[0].strip()
-                elif "```" in text:
-                    text = text.split("```")[1].split("```")[0].strip()
-
-                parsed = json.loads(text)
+            if content:
+                parsed = json.loads(content)
                 if "explanation" in parsed and "next_step" in parsed:
                     return {
                         "explanation": str(parsed["explanation"]),
                         "next_step": str(parsed["next_step"])
                     }
+        except Exception as e:
+            logger.warning(f"Groq API call failed: {e}")
+
+    # 2. Try Gemini if configured
+    if _gemini_client:
+        models = [GEMINI_MODEL, "gemini-2.5-flash", "gemini-3.6-flash", "gemini-flash-latest"]
+        for model_name in models:
+            try:
+                response = _gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                if response and hasattr(response, "text") and response.text:
+                    text = response.text.strip()
+                    if "```json" in text:
+                        text = text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in text:
+                        text = text.split("```")[1].split("```")[0].strip()
+
+                    parsed = json.loads(text)
+                    if "explanation" in parsed and "next_step" in parsed:
+                        return {
+                            "explanation": str(parsed["explanation"]),
+                            "next_step": str(parsed["next_step"])
+                        }
             except Exception:
                 continue
 
-    # 3. Dynamic Clinical Explanation Engine (Guaranteed, safe, accurate fallback)
+    # 3. Dynamic Clinical Explanation Engine
     return generate_fallback_explanation(test_name, value, unit, status, reference_range)
 
 
-# Clinical knowledge map for accurate physiological context
 CLINICAL_KNOWLEDGE = {
     "hemoglobin": {
         "desc": "Hemoglobin is the primary iron-containing protein in red blood cells that transports oxygen from the lungs to peripheral tissues.",
@@ -174,8 +182,9 @@ def generate_fallback_explanation(
     knowledge = CLINICAL_KNOWLEDGE.get(test_key)
 
     if status == "Normal":
+        desc = knowledge["desc"] if knowledge else ""
         return {
-            "explanation": f"{test_name} of {value} {unit} is within the expected standard physiological reference range ({reference_range}). {knowledge['desc'] if knowledge else ''}".strip(),
+            "explanation": f"{test_name} of {value} {unit} is within the expected standard physiological reference range ({reference_range}). {desc}".strip(),
             "next_step": "Routine monitoring as recommended by your healthcare provider."
         }
 
@@ -191,7 +200,6 @@ def generate_fallback_explanation(
             "next_step": next_step
         }
 
-    # Generic for any test not in knowledge map
     if status == "Critical":
         return {
             "explanation": f"{test_name} of {value} {unit} is significantly outside standard reference limits ({reference_range}) and warrants prompt medical evaluation.",

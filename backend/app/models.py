@@ -112,6 +112,7 @@ class LabAnalysisResponse(BaseModel):
     total_analyzed: int
     critical_count: int
     warning_count: int
+    normal_count: int
     disclaimer: Optional[str] = None
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()

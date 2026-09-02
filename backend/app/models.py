@@ -112,12 +112,7 @@ class LabAnalysisResponse(BaseModel):
     total_analyzed: int
     critical_count: int
     warning_count: int
-    normal_count: int
-    disclaimer: str = (
-        "INFORMATIONAL ONLY: This analysis is an educational demonstration and does NOT "
-        "constitute a medical diagnosis. Abnormal findings should be evaluated by a licensed "
-        "healthcare professional in conjunction with comprehensive clinical context."
-    )
+    disclaimer: Optional[str] = None
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )

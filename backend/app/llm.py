@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_API_KEY_FALLBACK = os.getenv("GROQ_API_KEY_FALLBACK", "").strip()
 
 # Gemini client initialization
 _gemini_client = None
@@ -22,14 +23,15 @@ if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
     except Exception as e:
         logger.warning(f"Could not initialize Google GenAI client: {e}")
 
-# Groq client initialization
-_groq_client = None
-if GROQ_API_KEY:
-    try:
-        from groq import Groq
-        _groq_client = Groq(api_key=GROQ_API_KEY)
-    except Exception as e:
-        logger.warning(f"Could not initialize Groq client: {e}")
+# Groq clients initialization (primary + fallback)
+_groq_clients = []
+for key in [GROQ_API_KEY, GROQ_API_KEY_FALLBACK]:
+    if key and key != "your_groq_api_key_here":
+        try:
+            from groq import Groq
+            _groq_clients.append(Groq(api_key=key))
+        except Exception as e:
+            logger.warning(f"Could not initialize Groq client: {e}")
 
 
 def get_clinical_prompt(
@@ -73,10 +75,10 @@ async def generate_lab_explanation(
     """Generate an explanation for a lab test result using LLM or clinical engine."""
     prompt = get_clinical_prompt(test_name, value, unit, status, reference_range)
 
-    # 1. Try Groq if configured
-    if _groq_client:
+    # 1. Try Groq clients (Primary then Fallback)
+    for client in _groq_clients:
         try:
-            chat_completion = _groq_client.chat.completions.create(
+            chat_completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model="openai/gpt-oss-120b",
                 response_format={"type": "json_object"},
@@ -90,7 +92,7 @@ async def generate_lab_explanation(
                         "next_step": str(parsed["next_step"])
                     }
         except Exception as e:
-            logger.warning(f"Groq API call failed: {e}")
+            logger.warning(f"Groq API call failed on client, trying next fallback: {e}")
 
     # 2. Try Gemini if configured
     if _gemini_client:

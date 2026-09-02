@@ -160,8 +160,7 @@ Main analysis endpoint. Ingests raw laboratory results, performs validation, ref
   "total_analyzed": 3,
   "critical_count": 1,
   "warning_count": 1,
-  "normal_count": 1,
-  "disclaimer": "INFORMATIONAL ONLY: This analysis is an educational demonstration and does NOT constitute a medical diagnosis."
+  "normal_count": 1
 }
 ```
 
@@ -176,9 +175,3 @@ The backend implements standard MCP tools in `backend/app/mcp_server.py`:
 - `reference_range_lookup`: Queries physiological minimums, maximums, and critical cutoffs for lab tests.
 - `classify_lab_tool`: Evaluates numeric lab values against reference intervals.
 - `explain_lab_tool`: Generates non-diagnostic clinical explanations and actionable next steps.
-
----
-
-## Disclaimer
-
-This application is built for educational demonstration and software engineering assessment purposes. It does not provide medical diagnosis or treatment advice.

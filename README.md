@@ -1,82 +1,60 @@
 # Clinical Lab Results Analyzer
 
-A full-stack clinical decision-support demonstration that takes laboratory test results, validates them, classifies their severity against standard reference intervals, prioritizes critical findings first, and generates clear, non-diagnostic clinical explanations and next steps using LLMs and the Model Context Protocol (MCP).
+A full-stack clinical decision-support application that ingests laboratory test results, validates numeric inputs, classifies severity against reference intervals, prioritizes critical findings first, and generates non-diagnostic clinical explanations and recommended next steps using LLMs and the Model Context Protocol (MCP).
 
 ---
 
-## What It Does
+## Architecture
 
-Clinical laboratories produce high volumes of test data every day. This application streamlines how these results are interpreted and prioritized:
-
-1. **Classify**: Compares numeric results against clinical reference ranges and categorizes them into `Normal`, `Warning`, or `Critical`.
-2. **Route**: Sorts findings by clinical urgency so critical alerts appear at the very top, followed by warnings, and normal baselines last.
-3. **Explain**: Generates concise, understandable explanations of why a result was flagged along with safe, recommended follow-up actions using an LLM.
-
----
-
-## Tech Stack
-
-- **Backend**: Python 3.10+, FastAPI, Uvicorn, Pydantic v2
-- **Agent / Tooling**: Model Context Protocol (MCP) SDK
-- **AI / LLM**: Google Gemini API (`gemini-2.5-flash`) with structured fallback handling
-- **Frontend**: React 18, Vite, Lucide Icons, PapaParse, Vanilla CSS
-- **Testing**: Pytest, FastAPI TestClient
-
----
-
-## Project Structure
+The system implements the **Classify -> Route -> Explain** pipeline:
 
 ```
-├── backend/
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py              # FastAPI app and API routes
-│   │   ├── models.py            # Pydantic request and response schemas
-│   │   ├── reference_ranges.py  # Standard reference intervals & test aliases
-│   │   ├── classifier.py        # Lab result classification logic
-│   │   ├── mcp_server.py        # FastMCP server and tool definitions
-│   │   ├── agent.py             # Classify -> Route -> Explain orchestration
-│   │   └── llm.py               # Gemini client & prompt generation
-│   ├── tests/
-│   │   └── test_api.py          # Pytest automated test suite
-│   ├── requirements.txt         # Python dependencies
-│   ├── .env.example             # Environment variable template
-│   └── run.py                   # Server startup script
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── LabInput.jsx         # Form entry & CSV upload
-│   │   │   ├── ResultsDisplay.jsx   # Results card layout & counters
-│   │   │   └── SeverityBadge.jsx    # Severity status badges
-│   │   ├── App.jsx                  # Main dashboard layout
-│   │   ├── App.css                  # Custom styling and design system
-│   │   └── main.jsx
-│   ├── package.json
-│   └── vite.config.js
-├── test_data/
-│   ├── normal.csv               # Normal test results sample
-│   ├── warning.csv              # Borderline/warning test results sample
-│   ├── critical.csv             # Critical/urgent test results sample
-│   └── kaggle_dataset.csv       # Anonymized laboratory dataset from Kaggle
-├── README.md
-└── .gitignore
+[React Frontend] ──(POST /analyze_labs)──> [FastAPI Backend]
+                                                  │
+                                                  ▼
+                                      [Agent Orchestrator]
+                                                  │
+                 ┌────────────────────────────────┼────────────────────────────────┐
+                 ▼                                ▼                                ▼
+    [1. Reference Lookup & Classify]     [2. Priority Router]              [3. LLM Explain]
+     (mcp_server / classifier.py)       (Critical > Warning > Normal)      (mcp_server / llm.py)
+                 │                                │                                │
+                 ▼                                ▼                                ▼
+         Assign Severity                  Sort Urgently                   Generate Context
+                 └────────────────────────────────┼────────────────────────────────┘
+                                                  │
+                                                  ▼
+                                    [Structured JSON Response]
 ```
+
+### Flow Breakdown:
+1. **Classify**: Compares numeric results against physiological reference intervals (Normal, Warning, Critical) using `classifier.py` and the MCP lookup tools.
+2. **Route**: Prioritizes findings so urgent **Critical** alerts are positioned first, followed by **Warning**, and **Normal** baselines last.
+3. **Explain**: Generates clinical context explaining why a result was flagged and suggests safe, actionable next steps.
 
 ---
 
-## Getting Started
+## AI Provider Chosen
+
+- **Primary Provider**: **Google Gemini API** (`gemini-2.5-flash` / `gemini-3.6-flash`) using the official SDK.
+- **Alternative Providers Supported**: **Groq API** (`llama-3.3-70b-versatile`) and **OpenAI API**.
+- **Resilient Clinical Fallback Engine**: If no API key is supplied or if network/quota errors occur, the system utilizes an intelligent built-in physiological clinical engine so the application remains fully functional and never crashes during offline testing or evaluation.
+
+---
+
+## Setup & Installation
 
 ### 1. Prerequisites
 - Python 3.10+
 - Node.js 18+ and npm
 
 ### 2. Environment Setup
-Copy `.env.example` to create your local `.env`:
+Create your local `.env` from the template:
 ```bash
 cp .env.example .env
 ```
 
-Set your Google Gemini API key in `.env`:
+Configure your `.env`:
 ```env
 PORT=8000
 HOST=0.0.0.0
@@ -85,38 +63,46 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
-> **Note**: If you do not have a Gemini API key yet, the application will automatically run in fallback mode with structured clinical explanations so you can test all features offline.
-
-### 3. Running the Backend
-Install Python dependencies and start the server:
+### 3. Backend Setup
 ```bash
 pip install -r backend/requirements.txt
 python backend/run.py
 ```
-The FastAPI backend will start at `http://localhost:8000`. You can explore the interactive OpenAPI documentation at `http://localhost:8000/docs`.
+- Server URL: `http://localhost:8000`
+- Interactive Swagger Docs: `http://localhost:8000/docs`
+- Health Check: `http://localhost:8000/health`
 
-### 4. Running the Frontend
-In a new terminal window:
+### 4. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-The React frontend will be accessible at `http://localhost:5173`.
+- Dashboard URL: `http://localhost:5173`
 
 ---
 
 ## How to Test
 
-### Using the Web UI
-1. Open `http://localhost:5173` in your browser.
-2. Use the **Quick-Load Synthetic Datasets** buttons (`Normal`, `Warning`, `Critical`, or `Kaggle Real Dataset`) to populate sample data with a single click.
-3. Or manually add custom lab test rows (e.g., `Hemoglobin`, `Glucose`, `Platelets`, `WBC`, `Creatinine`).
-4. Or switch to the **Upload CSV** tab and drag-and-drop any CSV file from `test_data/`.
-5. Click **Run Analysis** to execute the pipeline.
+### 1. Testing with Synthetic Datasets (Web UI)
+Open `http://localhost:5173` in your browser:
+- Click **Normal Dataset** to test baseline physiological values.
+- Click **Warning Dataset** to test borderline/mildly elevated values.
+- Click **Critical Dataset** to test urgent critical values and verify priority routing.
+- Click **Kaggle Real Dataset** to test records from the anonymized Kaggle laboratory dataset.
+- Click **Run Analysis** to execute the pipeline.
 
-### Running Automated Backend Tests
-Run the pytest test suite to verify endpoint routing, validation, reference intervals, and severity sorting:
+### 2. Testing with CSV Upload
+1. Switch to the **Upload CSV** tab in the sidebar.
+2. Drag and drop any file from the `test_data/` folder:
+   - `test_data/normal.csv`
+   - `test_data/warning.csv`
+   - `test_data/critical.csv`
+   - `test_data/kaggle_dataset.csv`
+3. Click **Run Analysis**.
+
+### 3. Running Automated Test Suite
+Run the automated pytest test suite covering validation, routing priority, boundaries, and error handling:
 ```bash
 python -m pytest backend/tests -v
 ```
@@ -126,9 +112,9 @@ python -m pytest backend/tests -v
 ## API Reference
 
 ### `POST /analyze_labs`
-Accepts a list of lab results and returns categorized, sorted, and explained findings.
+Main analysis endpoint. Ingests raw laboratory results, performs validation, reference interval classification, priority routing, and clinical explanation generation.
 
-**Request Payload:**
+**Request Example:**
 ```json
 {
   "labs": [
@@ -139,7 +125,7 @@ Accepts a list of lab results and returns categorized, sorted, and explained fin
 }
 ```
 
-**Response Payload:**
+**Response Example:**
 ```json
 {
   "results": [
@@ -149,8 +135,8 @@ Accepts a list of lab results and returns categorized, sorted, and explained fin
       "unit": "g/dL",
       "reference_range": "12.0 - 17.5 g/dL",
       "status": "Critical",
-      "explanation": "CRITICAL FINDING: Hemoglobin of 6.2 g/dL is severely low and indicates acute anemia requiring urgent clinical review.",
-      "next_step": "Seek immediate medical evaluation or contact treating physician for urgent hematology assessment."
+      "explanation": "Hemoglobin of 6.2 g/dL is critically outside reference bounds (12.0 - 17.5 g/dL). Critically low hemoglobin indicates severe anemia with significantly reduced oxygen delivery capacity.",
+      "next_step": "Seek urgent medical review with your physician or hematologist for immediate clinical assessment."
     },
     {
       "test_name": "Glucose",
@@ -158,8 +144,8 @@ Accepts a list of lab results and returns categorized, sorted, and explained fin
       "unit": "mg/dL",
       "reference_range": "70.0 - 99.0 mg/dL",
       "status": "Warning",
-      "explanation": "Glucose level of 118.0 mg/dL is mildly elevated above the fasting reference interval.",
-      "next_step": "Discuss with your physician to evaluate fasting status or consider follow-up testing."
+      "explanation": "Glucose of 118.0 mg/dL shows a moderate deviation outside the reference range (70.0 - 99.0 mg/dL).",
+      "next_step": "Discuss with your physician to evaluate contributing factors and determine if a follow-up test is recommended."
     },
     {
       "test_name": "Platelets",
@@ -167,8 +153,8 @@ Accepts a list of lab results and returns categorized, sorted, and explained fin
       "unit": "10^3/uL",
       "reference_range": "150.0 - 450.0 10^3/uL",
       "status": "Normal",
-      "explanation": "Platelet count of 240.0 10^3/uL is within the standard physiological reference range.",
-      "next_step": "Routine monitoring as recommended during regular wellness visits."
+      "explanation": "Platelets of 240.0 10^3/uL is within the expected standard physiological reference range (150.0 - 450.0 10^3/uL).",
+      "next_step": "Routine monitoring as recommended by your healthcare provider."
     }
   ],
   "total_analyzed": 3,
@@ -180,19 +166,19 @@ Accepts a list of lab results and returns categorized, sorted, and explained fin
 ```
 
 ### `GET /health`
-Returns backend service health, MCP readiness, and LLM configuration status.
+Returns backend health status, MCP readiness, and LLM configuration state.
 
 ---
 
-## Model Context Protocol (MCP) Tools
+## MCP (Model Context Protocol) Tools
 
-The backend implements MCP tool interfaces inside `backend/app/mcp_server.py`:
+The backend implements standard MCP tools in `backend/app/mcp_server.py`:
 - `reference_range_lookup`: Queries physiological minimums, maximums, and critical cutoffs for lab tests.
 - `classify_lab_tool`: Evaluates numeric lab values against reference intervals.
-- `explain_lab_tool`: Invokes the LLM to generate non-diagnostic clinical explanations and next steps.
+- `explain_lab_tool`: Generates non-diagnostic clinical explanations and actionable next steps.
 
 ---
 
-## Medical Safety & Disclaimer
+## Disclaimer
 
-This application is created strictly for educational demonstration and software engineering evaluation purposes. It does not provide medical advice or diagnosis. All laboratory results should be reviewed in consultation with qualified healthcare professionals.
+This application is built for educational demonstration and software engineering assessment purposes. It does not provide medical diagnosis or treatment advice.

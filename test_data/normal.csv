@@ -1,0 +1,8 @@
+test_name,value,unit
+Hemoglobin,14.5,g/dL
+Glucose,85.0,mg/dL
+WBC,6.8,10^3/uL
+Platelets,240.0,10^3/uL
+Creatinine,0.9,mg/dL
+Potassium,4.2,mEq/L
+Sodium,140.0,mEq/L
